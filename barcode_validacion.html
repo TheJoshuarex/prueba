@@ -9,17 +9,13 @@
 <body>
   <h2>Escanear Código de Barras y confirmar</h2>
   <div class="section">
-    <p>A continuación se abrirá la cámara para detectar un código de barras. Al detectarlo podrás confirmar y enviarlo a `registrar.php`.</p>
+    <p>Se abrirá la cámara para detectar un código de barras. Al detectarlo se redirigirá automáticamente a la página de resultado.</p>
     <div id="barcode-reader" style="width:320px;height:240px;background:#000"></div>
     <p>Resultado: <strong id="detected">(esperando)</strong></p>
-    <form id="confirm-form" method="POST" action="registrar.php">
-      <input type="hidden" name="type" value="barcode">
-      <input type="hidden" name="value" id="form-value">
-      <div class="row">
-        <button type="submit" id="btn-confirm" disabled>Confirmar escaneo (enviar)</button>
-        <button type="button" id="btn-stop">Detener cámara</button>
-      </div>
-    </form>
+    <div class="row">
+      <button id="btn-stop">Detener cámara</button>
+    </div>
+    <p class="note">Al detectar un código el navegador irá a <code>result.html?type=barcode&value=&lt;valor&gt;</code>.</p>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
@@ -39,18 +35,18 @@
       });
       Quagga.onDetected(data=>{
         if(data && data.codeResult && data.codeResult.code){
-          const code = data.codeResult.code;
-          detectedEl.textContent = code;
-          formValue.value = code;
-          btnConfirm.disabled = false;
-          // detener tras primer acierto
-          Quagga.stop();
-        }
+            const code = data.codeResult.code;
+            detectedEl.textContent = code;
+            try{ Quagga.stop(); }catch(e){}
+            // redirigir al resultado
+            const target = 'result.html?type=barcode&value=' + encodeURIComponent(code);
+            window.location.href = target;
+          }
       });
     }
 
     startQuagga();
-    btnStop.addEventListener('click', ()=>{ Quagga.stop(); detectedEl.textContent='(detenido)'; btnConfirm.disabled=true; });
+    btnStop.addEventListener('click', ()=>{ Quagga.stop(); detectedEl.textContent='(detenido)'; });
   </script>
 </body>
 </html>

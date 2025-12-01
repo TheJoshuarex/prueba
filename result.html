@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Resultado del Escaneo</title>
+  <style>body{font-family:Arial;margin:20px} .card{border:1px solid #ddd;padding:16px;border-radius:8px;max-width:720px} .value{font-weight:bold;color:#0b61a4}</style>
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2 id="title">Resultado</h2>
+    <p id="message">Procesando...</p>
+    <p><a href="heroes_biometric.html">Volver a herramientas</a></p>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const type = (params.get('type') || '').toLowerCase();
+    const value = params.get('value') || '';
+    const title = document.getElementById('title');
+    const message = document.getElementById('message');
+
+    if(type === 'qr'){
+      title.textContent = 'Llegaste por un QR';
+      message.innerHTML = 'Llegaste aquí por el código <strong>QR</strong> con valor: <span class="value">' + escapeHtml(value) + '</span>';
+    } else if(type === 'barcode' || type === 'bar'){
+      title.textContent = 'Llegaste por un Código de Barras';
+      message.innerHTML = 'Llegaste aquí por el <strong>código de barras</strong> con valor: <span class="value">' + escapeHtml(value) + '</span>';
+    } else {
+      title.textContent = 'Resultado de escaneo';
+      message.innerHTML = 'Tipo: <strong>' + escapeHtml(type) + '</strong><br>Valor: <span class="value">' + escapeHtml(value) + '</span>';
+    }
+
+    function escapeHtml(str){
+      if(!str) return '';
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+  </script>
+</body>
+</html>

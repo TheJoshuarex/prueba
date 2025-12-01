@@ -9,18 +9,13 @@
 <body>
   <h2>Escanear QR y confirmar</h2>
   <div class="section">
-    <p>A continuación se abrirá la cámara para detectar un QR. Al detectarlo podrás confirmar y enviarlo a `registrar.php`.</p>
+    <p>Se abrirá la cámara para detectar un QR. Al detectarlo se redirigirá automáticamente a la página de resultado.</p>
     <div id="qr-reader" style="width:320px;height:240px;background:#000"></div>
     <p>Resultado: <strong id="detected">(esperando)</strong></p>
-    <form id="confirm-form" method="POST" action="registrar.php">
-      <input type="hidden" name="type" value="qr">
-      <input type="hidden" name="value" id="form-value">
-      <div class="row">
-        <button type="submit" id="btn-confirm" disabled>Confirmar escaneo (enviar)</button>
-        <button type="button" id="btn-stop">Detener cámara</button>
-      </div>
-    </form>
-    <p class="note">Si registrar.php espera otros campos, adáptalo. Este ejemplo envía `type=qr` y `value=`.</p>
+    <div class="row">
+      <button id="btn-stop">Detener cámara</button>
+    </div>
+    <p class="note">Al detectar un QR el navegador irá a <code>result.html?type=qr&value=&lt;valor&gt;</code>.</p>
   </div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
@@ -33,14 +28,11 @@
     const btnStop = document.getElementById('btn-stop');
 
     function onScanSuccess(decodedText, decodedResult){
-      // se detectó QR
+      // se detectó QR — redirigir al resultado
       detectedEl.textContent = decodedText;
-      formValue.value = decodedText;
-      btnConfirm.disabled = false;
-      // opcional: detener tras primer acierto
-      html5QrCode.stop().then(()=>{
-        console.log('Scanner stopped after detection');
-      }).catch(e=>console.warn(e));
+      try{ html5QrCode.stop(); }catch(e){}
+      const target = 'result.html?type=qr&value=' + encodeURIComponent(decodedText);
+      window.location.href = target;
     }
     function onScanFailure(error){ /* no-op */ }
 
@@ -52,7 +44,7 @@
     }).catch(err=>{ detectedEl.textContent = 'No se encontraron cámaras: '+err; });
 
     btnStop.addEventListener('click', ()=>{
-      html5QrCode.stop().then(()=>{ detectedEl.textContent='(detenido)'; btnConfirm.disabled = true; }).catch(e=>console.warn(e));
+      html5QrCode.stop().then(()=>{ detectedEl.textContent='(detenido)'; }).catch(e=>console.warn(e));
     });
   </script>
 </body>
