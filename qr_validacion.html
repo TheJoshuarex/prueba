@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Validar QR</title>
+  <style>body{font-family:Arial;margin:16px}.section{border:1px solid #ddd;padding:12px;border-radius:6px}.row{display:flex;gap:8px;align-items:center}</style>
+</head>
+<body>
+  <h2>Escanear QR y confirmar</h2>
+  <div class="section">
+    <p>A continuación se abrirá la cámara para detectar un QR. Al detectarlo podrás confirmar y enviarlo a `registrar.php`.</p>
+    <div id="qr-reader" style="width:320px;height:240px;background:#000"></div>
+    <p>Resultado: <strong id="detected">(esperando)</strong></p>
+    <form id="confirm-form" method="POST" action="registrar.php">
+      <input type="hidden" name="type" value="qr">
+      <input type="hidden" name="value" id="form-value">
+      <div class="row">
+        <button type="submit" id="btn-confirm" disabled>Confirmar escaneo (enviar)</button>
+        <button type="button" id="btn-stop">Detener cámara</button>
+      </div>
+    </form>
+    <p class="note">Si registrar.php espera otros campos, adáptalo. Este ejemplo envía `type=qr` y `value=`.</p>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <script>
+    const qrReaderId = 'qr-reader';
+    const html5QrCode = new Html5Qrcode(qrReaderId);
+    const detectedEl = document.getElementById('detected');
+    const formValue = document.getElementById('form-value');
+    const btnConfirm = document.getElementById('btn-confirm');
+    const btnStop = document.getElementById('btn-stop');
+
+    function onScanSuccess(decodedText, decodedResult){
+      // se detectó QR
+      detectedEl.textContent = decodedText;
+      formValue.value = decodedText;
+      btnConfirm.disabled = false;
+      // opcional: detener tras primer acierto
+      html5QrCode.stop().then(()=>{
+        console.log('Scanner stopped after detection');
+      }).catch(e=>console.warn(e));
+    }
+    function onScanFailure(error){ /* no-op */ }
+
+    // iniciar scanner
+    Html5Qrcode.getCameras().then(cameras=>{
+      const cameraId = cameras && cameras.length ? cameras[0].id : null;
+      html5QrCode.start({ deviceId: { exact: cameraId } }, { fps:10, qrbox:250 }, onScanSuccess, onScanFailure)
+      .catch(err=>{ detectedEl.textContent = 'Error al iniciar cámara: '+err; });
+    }).catch(err=>{ detectedEl.textContent = 'No se encontraron cámaras: '+err; });
+
+    btnStop.addEventListener('click', ()=>{
+      html5QrCode.stop().then(()=>{ detectedEl.textContent='(detenido)'; btnConfirm.disabled = true; }).catch(e=>console.warn(e));
+    });
+  </script>
+</body>
+</html>

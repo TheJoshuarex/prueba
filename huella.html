@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Detección Huella (tiempo real) - Demo</title>
+  <style>body{font-family:Arial;margin:16px}.section{border:1px solid #ddd;padding:12px;border-radius:6px}.status{font-weight:bold;margin-top:8px}</style>
+</head>
+<body>
+  <h2>Detección de Huella en Tiempo Real (Demo)</h2>
+  <div class="section">
+    <p>Limitaciones: los navegadores no permiten leer sensores de huella directamente en tiempo real por seguridad. Este demo intenta detectar presencia solicitando autenticación WebAuthn repetidamente —esto provocará prompts del sistema y no es ideal. Si tienes un lector USB específico, lo ideal es usar su SDK o un servicio local.</p>
+
+    <div>
+      <label><input type="checkbox" id="simulated"> Usar simulación local (sin prompts)</label>
+    </div>
+
+    <div style="margin-top:8px">
+      <button id="start">Iniciar detección</button>
+      <button id="stop" disabled>Detener</button>
+    </div>
+
+    <p class="status">Estado: <span id="status">detenido</span></p>
+    <p>Detectado: <span id="detected">(ninguno)</span></p>
+
+    <div style="margin-top:8px">
+      <button id="simulate-touch" style="display:none">Simular huella</button>
+    </div>
+
+    <p>Nota: Para detección real en tiempo real necesitas el SDK del fabricante o un servicio local que exponga el lector (WebUSB, una API local o WebSocket).</p>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const statusEl = document.getElementById('status');
+    const detectedEl = document.getElementById('detected');
+    const simulatedChk = document.getElementById('simulated');
+    const simulateBtn = document.getElementById('simulate-touch');
+
+    let running = false;
+    let loopHandle = null;
+
+    function logStatus(s){ statusEl.textContent = s }
+
+    async function tryWebAuthnOnce(){
+      // Generamos challenge corto
+      try{
+        const publicKey = {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          timeout: 3000,
+          userVerification: 'preferred'
+        };
+        const assertion = await navigator.credentials.get({ publicKey });
+        return assertion ? true : false;
+      }catch(e){
+        // puede fallar si usuario cancela o no hay credenciales
+        return false;
+      }
+    }
+
+    function startLoop(){
+      if(running) return;
+      running = true; startBtn.disabled = true; stopBtn.disabled = false; logStatus('iniciado'); detectedEl.textContent='(esperando)';
+
+      if(simulatedChk.checked){
+        simulateBtn.style.display = 'inline-block';
+      } else {
+        simulateBtn.style.display = 'none';
+      }
+
+      // Loop que intenta detectar
+      loopHandle = setInterval(async ()=>{
+        if(!running) return;
+        if(simulatedChk.checked) return; // en simulación no hacemos WebAuthn
+        // intentar get() con timeout corto
+        const found = await tryWebAuthnOnce();
+        if(found){
+          detectedEl.textContent = 'HUELLA DETECTADA (respuesta WebAuthn recibida)';
+          // detener
+          stopLoop();
+        } else {
+          // no detectado
+          console.log('no detectado');
+        }
+      }, 1500);
+    }
+
+    function stopLoop(){
+      running = false; startBtn.disabled = false; stopBtn.disabled = true; logStatus('detenido');
+      if(loopHandle) clearInterval(loopHandle);
+      simulateBtn.style.display = 'none';
+    }
+
+    simulateBtn.addEventListener('click', ()=>{ detectedEl.textContent = 'HUELLA SIMULADA (OK)'; stopLoop(); });
+    startBtn.addEventListener('click', ()=>{ startLoop(); if(simulatedChk.checked){ logStatus('simulación'); } });
+    stopBtn.addEventListener('click', ()=>{ stopLoop(); });
+
+  </script>
+</body>
+</html>

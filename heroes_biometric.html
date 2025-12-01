@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Demo QR / Barcode / Biometría</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:18px}
+    h1{font-size:1.2rem}
+    .section{border:1px solid #ddd;padding:12px;margin:12px 0;border-radius:6px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    input,button,select{padding:6px;font-size:0.95rem}
+    #qrcode, #barcode { margin-top:10px }
+    #qr-reader, #barcode-reader{width:320px;height:240px;background:#000}
+    pre{background:#f6f8fa;padding:8px;border-radius:6px}
+    .note{color:#555;font-size:0.9rem}
+  </style>
+</head>
+<body>
+  <h1>Versión con QR, Código de Barras y Demo biométrico</h1>
+
+  <div class="section">
+    <strong>Generar QR</strong>
+    <div class="row">
+      <input id="qr-text" placeholder="Texto a convertir en QR" style="min-width:280px" />
+      <button id="btn-gen-qr">Generar QR</button>
+      <button id="btn-download-qr">Descargar PNG</button>
+    </div>
+    <div id="qrcode"></div>
+  </div>
+
+  <div class="section">
+    <strong>Generar Código de Barras (CODE128)</strong>
+    <div class="row">
+      <input id="barcode-text" placeholder="Texto o números" style="min-width:280px" />
+      <button id="btn-gen-barcode">Generar Código</button>
+      <button id="btn-download-barcode">Descargar SVG</button>
+    </div>
+    <svg id="barcode" />
+  </div>
+
+  <div class="section">
+    <strong>Escáner de QR</strong>
+    <div class="row">
+      <a href="qr_validacion.html" target="_blank"><button>Ir a validación QR</button></a>
+    </div>
+    <p class="note">Se ha movido el escáner QR a una página dedicada que muestra la lectura y permite confirmarla.</p>
+  </div>
+
+  <div class="section">
+    <strong>Escáner de Código de Barras</strong>
+    <div class="row">
+      <a href="barcode_validacion.html" target="_blank"><button>Ir a validación Barcode</button></a>
+    </div>
+    <p class="note">Se ha movido el escáner de código de barras a una página dedicada con confirmación.</p>
+  </div>
+
+    <div class="section">
+    <strong>Demo Biometría (WebAuthn) — registro y verificación local</strong>
+    <div class="row">
+      <input id="webauthn-username" placeholder="Usuario (ej: juan)" />
+      <button id="btn-webauthn-register">Registrar (create)</button>
+      <button id="btn-webauthn-auth">Autenticar (get)</button>
+      <a href="huella.html" target="_blank"><button>Detección huella (tiempo real)</button></a>
+    </div>
+    <p class="note">Este es un demo cliente-only que utiliza el autenticador de la plataforma (p. ej. huella del dispositivo). Para detectar huella en "tiempo real" abre la página dedicada.</p>
+    <pre id="webauthn-log">(logs)</pre>
+  </div>
+
+  <div class="section">
+    <strong>Instrucciones rápidas</strong>
+    <ul>
+      <li>Coloca este archivo en `c:\xampp\htdocs\hero\heroes_biometric.html` y ábrelo en el navegador usando <code>http://localhost/hero/heroes_biometric.html</code>.</li>
+      <li>El demo WebAuthn funciona en `localhost` (contexto seguro) y puede solicitar huella si el navegador/soporte de plataforma lo permite.</li>
+      <li>Para integración real de un escáner de huella USB dev/proveedor, necesitas su SDK y endpoints server-side.</li>
+    </ul>
+  </div>
+
+  <!-- Librerías CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+
+  <script>
+    // ------------------ Helpers ------------------
+    function arrayBufferToBase64(buffer){
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for(let i=0;i<bytes.byteLength;i++) binary += String.fromCharCode(bytes[i]);
+      return window.btoa(binary);
+    }
+    function base64ToArrayBuffer(base64){
+      const binary = window.atob(base64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for(let i=0;i<len;i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }
+    function toBase64Url(buffer){
+      return arrayBufferToBase64(buffer).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+    function fromBase64Url(base64url){
+      base64url = base64url.replace(/-/g,'+').replace(/_/g,'/');
+      // pad
+      while(base64url.length % 4) base64url += '=';
+      return base64ToArrayBuffer(base64url);
+    }
+
+    // ------------------ QR generation ------------------
+    let qrInstance = null;
+    document.getElementById('btn-gen-qr').addEventListener('click', ()=>{
+      const txt = document.getElementById('qr-text').value || 'Demo QR';
+      const container = document.getElementById('qrcode');
+      container.innerHTML = '';
+      qrInstance = new QRCode(container, {text:txt, width:200, height:200});
+    });
+
+    document.getElementById('btn-download-qr').addEventListener('click', ()=>{
+      const container = document.querySelector('#qrcode img, #qrcode canvas');
+      if(!container){ alert('Genere primero el QR'); return; }
+      if(container.tagName.toLowerCase() === 'img'){
+        const a = document.createElement('a'); a.href = container.src; a.download = 'qrcode.png'; a.click();
+      } else {
+        const data = container.toDataURL('image/png');
+        const a = document.createElement('a'); a.href = data; a.download = 'qrcode.png'; a.click();
+      }
+    });
+
+    // ------------------ Barcode generation ------------------
+    document.getElementById('btn-gen-barcode').addEventListener('click', ()=>{
+      const txt = document.getElementById('barcode-text').value || '1234567890';
+      const svg = document.getElementById('barcode');
+      JsBarcode(svg, txt, {format:'CODE128', displayValue:true, width:2, height:60});
+    });
+    document.getElementById('btn-download-barcode').addEventListener('click', ()=>{
+      const svg = document.getElementById('barcode');
+      const serializer = new XMLSerializer();
+      const svgStr = serializer.serializeToString(svg);
+      const blob = new Blob([svgStr], {type:'image/svg+xml'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'barcode.svg'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    });
+
+    // ------------------ QR scanning (html5-qrcode) ------------------
+    let html5QrCode = null;
+    const qrResultEl = document.getElementById('qr-result');
+    document.getElementById('btn-start-qr').addEventListener('click', async ()=>{
+      if(html5QrCode) return;
+      const qrRegionId = 'qr-reader';
+      html5QrCode = new Html5Qrcode(qrRegionId);
+      try{
+        await html5QrCode.start({facingMode:'environment'}, {fps:10, qrbox:250}, (decoded)=>{
+          qrResultEl.textContent = decoded;
+        });
+      }catch(e){ alert('No se pudo iniciar cámara: ' + e.message); html5QrCode = null }
+    });
+    document.getElementById('btn-stop-qr').addEventListener('click', ()=>{
+      if(!html5QrCode) return; html5QrCode.stop().then(()=>{html5QrCode.clear(); html5QrCode=null; qrResultEl.textContent='(no hay)'});
+    });
+
+    // ------------------ Barcode scanning (Quagga) ------------------
+    const barcodeResultEl = document.getElementById('barcode-result');
+    let quaggaRunning = false;
+    document.getElementById('btn-start-barcode').addEventListener('click', ()=>{
+      if(quaggaRunning) return;
+      Quagga.init({
+        inputStream: { name: 'Live', type: 'LiveStream', target: document.querySelector('#barcode-reader'), constraints: { facingMode: 'environment'} },
+        decoder: { readers: ['code_128_reader','ean_reader','ean_8_reader','upc_reader'] }
+      }, function(err){
+        if(err){ alert('Quagga init error: '+err); return; }
+        Quagga.start(); quaggaRunning = true;
+      });
+      Quagga.onDetected(data=>{
+        if(data && data.codeResult && data.codeResult.code){
+          barcodeResultEl.textContent = data.codeResult.code;
+        }
+      });
+    });
+    document.getElementById('btn-stop-barcode').addEventListener('click', ()=>{
+      if(!quaggaRunning) return; Quagga.stop(); quaggaRunning=false; barcodeResultEl.textContent='(no hay)';
+    });
+
+    // ------------------ WebAuthn demo (cliente-only) ------------------
+    const logEl = document.getElementById('webauthn-log');
+    function log(msg){ logEl.textContent = new Date().toLocaleTimeString()+ ' - ' + msg + '\n' + logEl.textContent }
+
+    function randomBuffer(len){ const b = new Uint8Array(len); window.crypto.getRandomValues(b); return b.buffer }
+
+    document.getElementById('btn-webauthn-register').addEventListener('click', async ()=>{
+      const username = document.getElementById('webauthn-username').value || 'user';
+      try{
+        const userId = new TextEncoder().encode(username + ':' + Math.floor(Math.random()*100000));
+        const publicKey = {
+          challenge: new Uint8Array(32),
+          rp: { name: 'Demo RP' },
+          user: { id: userId, name: username, displayName: username },
+          pubKeyCredParams: [ { type: 'public-key', alg: -7 } ],
+          authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'preferred' },
+          timeout: 60000,
+          attestation: 'none'
+        };
+        window.crypto.getRandomValues(publicKey.challenge);
+        const credential = await navigator.credentials.create({ publicKey });
+        if(!credential){ log('Registro cancelado o falló'); return; }
+        const rawId = credential.rawId;
+        const idB64 = toBase64Url(rawId);
+        // Guardamos en localStorage (demo solo cliente)
+        localStorage.setItem('webauthn_cred_id', idB64);
+        log('Registrado. id guardado en localStorage');
+      }catch(e){ log('Error en register: '+e); }
+    });
+
+    document.getElementById('btn-webauthn-auth').addEventListener('click', async ()=>{
+      const idB64 = localStorage.getItem('webauthn_cred_id');
+      if(!idB64){ log('No hay credential guardada. Registra primero.'); return; }
+      try{
+        const allowId = new Uint8Array(fromBase64Url(idB64));
+        const publicKey = {
+          challenge: new Uint8Array(32),
+          allowCredentials: [{ id: allowId, type: 'public-key', transports: ['internal'] }],
+          userVerification: 'preferred',
+          timeout: 60000
+        };
+        window.crypto.getRandomValues(publicKey.challenge);
+        const assertion = await navigator.credentials.get({ publicKey });
+        if(!assertion){ log('Autenticación cancelada o falló'); return; }
+        log('Autenticación OK (respuesta recibida).');
+      }catch(e){ log('Error en auth: '+e); }
+    });
+
+  </script>
+</body>
+</html>
