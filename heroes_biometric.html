@@ -40,19 +40,17 @@
   </div>
 
   <div class="section">
-    <strong>Escáner de QR</strong>
+    <strong>Validación (enlace generado)</strong>
     <div class="row">
-      <a href="qr_validacion.html" target="_blank"><button>Ir a validación QR</button></a>
+      <p class="note">Al generar un QR se mostrará el enlace de validación automáticamente.</p>
     </div>
-    <p class="note">Se ha movido el escáner QR a una página dedicada que muestra la lectura y permite confirmarla.</p>
   </div>
 
   <div class="section">
-    <strong>Escáner de Código de Barras</strong>
+    <strong>Validación (enlace generado)</strong>
     <div class="row">
-      <a href="barcode_validacion.html" target="_blank"><button>Ir a validación Barcode</button></a>
+      <p class="note">Al generar un código de barras se mostrará el enlace de validación automáticamente.</p>
     </div>
-    <p class="note">Se ha movido el escáner de código de barras a una página dedicada con confirmación.</p>
   </div>
 
     <div class="section">
@@ -79,8 +77,7 @@
   <!-- Librerías CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <!-- No se cargan librerías de escaneo aquí; la validación se realiza vía `result.html` -->
 
   <script>
     // ------------------ Helpers ------------------
@@ -143,43 +140,46 @@
       setTimeout(()=>URL.revokeObjectURL(url),1000);
     });
 
-    // ------------------ QR scanning (html5-qrcode) ------------------
-    let html5QrCode = null;
-    const qrResultEl = document.getElementById('qr-result');
-    document.getElementById('btn-start-qr').addEventListener('click', async ()=>{
-      if(html5QrCode) return;
-      const qrRegionId = 'qr-reader';
-      html5QrCode = new Html5Qrcode(qrRegionId);
-      try{
-        await html5QrCode.start({facingMode:'environment'}, {fps:10, qrbox:250}, (decoded)=>{
-          qrResultEl.textContent = decoded;
-        });
-      }catch(e){ alert('No se pudo iniciar cámara: ' + e.message); html5QrCode = null }
-    });
-    document.getElementById('btn-stop-qr').addEventListener('click', ()=>{
-      if(!html5QrCode) return; html5QrCode.stop().then(()=>{html5QrCode.clear(); html5QrCode=null; qrResultEl.textContent='(no hay)'});
+    // ------------------ Generación de enlaces de validación ------------------
+    function createOrUpdateLink(container, id, target){
+      let linkDiv = document.getElementById(id);
+      if(!linkDiv){
+        linkDiv = document.createElement('div');
+        linkDiv.id = id;
+        linkDiv.className = 'note';
+        container.parentNode.insertBefore(linkDiv, container.nextSibling);
+      }
+      const safeTarget = target;
+      linkDiv.innerHTML = `Enlace de validación: <a href="${safeTarget}" target="_blank">${safeTarget}</a> `;
+      // añadir botones abrir y copiar
+      const btnOpen = document.createElement('button'); btnOpen.textContent = 'Abrir';
+      btnOpen.addEventListener('click', ()=> window.open(safeTarget, '_blank'));
+      const btnCopy = document.createElement('button'); btnCopy.textContent = 'Copiar';
+      btnCopy.addEventListener('click', ()=>{
+        navigator.clipboard.writeText(safeTarget).then(()=>{ alert('Enlace copiado al portapapeles'); }).catch(()=>{ alert('No se pudo copiar automáticamente. Selecciona y copia manualmente.'); });
+      });
+      // limpiar posibles botones previos
+      // eliminar children que sean botones (evitar duplicados)
+      Array.from(linkDiv.querySelectorAll('button')).forEach(b=>b.remove());
+      linkDiv.appendChild(btnOpen); linkDiv.appendChild(btnCopy);
+    }
+
+    // modificar eventos de generación para crear el enlace automáticamente
+    document.getElementById('btn-gen-qr').addEventListener('click', ()=>{
+      const txt = document.getElementById('qr-text').value || 'Demo QR';
+      const container = document.getElementById('qrcode');
+      container.innerHTML = '';
+      qrInstance = new QRCode(container, {text:txt, width:200, height:200});
+      const target = 'result.html?type=qr&value=' + encodeURIComponent(txt);
+      createOrUpdateLink(container, 'qr-link', target);
     });
 
-    // ------------------ Barcode scanning (Quagga) ------------------
-    const barcodeResultEl = document.getElementById('barcode-result');
-    let quaggaRunning = false;
-    document.getElementById('btn-start-barcode').addEventListener('click', ()=>{
-      if(quaggaRunning) return;
-      Quagga.init({
-        inputStream: { name: 'Live', type: 'LiveStream', target: document.querySelector('#barcode-reader'), constraints: { facingMode: 'environment'} },
-        decoder: { readers: ['code_128_reader','ean_reader','ean_8_reader','upc_reader'] }
-      }, function(err){
-        if(err){ alert('Quagga init error: '+err); return; }
-        Quagga.start(); quaggaRunning = true;
-      });
-      Quagga.onDetected(data=>{
-        if(data && data.codeResult && data.codeResult.code){
-          barcodeResultEl.textContent = data.codeResult.code;
-        }
-      });
-    });
-    document.getElementById('btn-stop-barcode').addEventListener('click', ()=>{
-      if(!quaggaRunning) return; Quagga.stop(); quaggaRunning=false; barcodeResultEl.textContent='(no hay)';
+    document.getElementById('btn-gen-barcode').addEventListener('click', ()=>{
+      const txt = document.getElementById('barcode-text').value || '1234567890';
+      const svg = document.getElementById('barcode');
+      JsBarcode(svg, txt, {format:'CODE128', displayValue:true, width:2, height:60});
+      const target = 'result.html?type=barcode&value=' + encodeURIComponent(txt);
+      createOrUpdateLink(svg, 'barcode-link', target);
     });
 
     // ------------------ WebAuthn demo (cliente-only) ------------------
